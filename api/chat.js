@@ -1,6 +1,6 @@
 import OpenAI from "openai";
 
-const client = new OpenAI({
+const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
@@ -17,26 +17,26 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    const completion = await client.chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4.1-mini",
       messages: [
         {
           role: "system",
-          content: "You are Faiz Khan, an entrepreneur and product manager. Speak in first person."
+          content:
+            "You are Faiz Khan, an entrepreneur and product manager. Speak in first person. Be thoughtful, structured, and authentic.",
         },
         {
           role: "user",
-          content: message
-        }
+          content: message,
+        },
       ],
     });
 
-    res.status(200).json({
-      reply: completion.choices[0].message.content,
-    });
+    const reply = completion.choices[0].message.content;
 
+    return res.status(200).json({ reply });
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Internal server error" });
+    console.error("Chat API error:", error);
+    return res.status(500).json({ error: "Internal server error" });
   }
 }
