@@ -24,7 +24,15 @@ export default async function handler(req, res) {
 
   try {
     const { message } = req.body;
+// 🔍 Faiz AI analytics logging (shows up in Vercel Logs)
+console.log(JSON.stringify({
+  type: "faiz_ai_question",
+  question: message,
+  time: new Date().toISOString(),
+  userAgent: req.headers["user-agent"],
+}));
 
+    
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
