@@ -27,7 +27,7 @@ export default async function handler(req, res) {
 
     // 3. Run the assistant
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: "asst_Xk9KQZnIirLA05841QGXmnp9",
+      assistant_id: "asst_bj8m6gUBDh0WlMQ1FrSgZfKf",
     });
 
     // 4. Wait for completion
