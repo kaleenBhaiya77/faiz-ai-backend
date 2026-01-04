@@ -5,34 +5,33 @@ const openai = new OpenAI({
 });
 
 export default async function handler(req, res) {
-
   // ---- CORS FIX FOR BROWSER (FRAMER) ----
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  // Handle preflight request
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
   // --------------------------------------
 
-  
   if (req.method !== "POST") {
     return res.status(405).json({ error: "Method not allowed" });
   }
 
   try {
     const { message } = req.body;
-// 🔍 Faiz AI analytics logging (shows up in Vercel Logs)
-console.log(JSON.stringify({
-  type: "faiz_ai_question",
-  question: message,
-  time: new Date().toISOString(),
-  userAgent: req.headers["user-agent"],
-}));
 
-    
+    // 🔍 Faiz AI analytics logging (Vercel Logs)
+    console.log(
+      JSON.stringify({
+        type: "faiz_ai_question",
+        question: message,
+        time: new Date().toISOString(),
+        userAgent: req.headers["user-agent"],
+      })
+    );
+
     if (!message) {
       return res.status(400).json({ error: "Message is required" });
     }
@@ -55,21 +54,30 @@ console.log(JSON.stringify({
     let runStatus;
     do {
       await new Promise((r) => setTimeout(r, 800));
-      runStatus = await openai.beta.threads.runs.retrieve(
-        thread.id,
-        run.id
-      );
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     } while (runStatus.status !== "completed");
 
     // 5. Read response
     const messages = await openai.beta.threads.messages.list(thread.id);
-    const lastMessage = messages.data.find(
-      (m) => m.role === "assistant"
-    );
+    const lastMessage = messages.data.find((m) => m.role === "assistant");
 
-    const reply =
+    let reply =
       lastMessage?.content?.[0]?.text?.value ||
       "I couldn’t answer this—ask the real Faiz 🙂";
+
+    // -------------------------------
+    // 🧹 CLEAN NON-HUMAN FORMATTING
+    // -------------------------------
+    reply = reply
+      .replace(/^{|}$/g, "")                // remove wrapping braces
+      .replace(/"reply"\s*:\s*/gi, "")      // remove "reply":
+      .replace(/\\n+/g, "\n")               // normalize newlines
+      .replace(/\n{3,}/g, "\n\n")           // limit spacing
+      .replace(/\*\*/g, "")                 // remove markdown bold
+      .replace(/\*/g, "")                   // remove bullets
+      .replace(/^\s*[-•]\s+/gm, "")         // remove list markers
+      .replace(/^"+|"+$/g, "")              // trim stray quotes
+      .trim();
 
     return res.status(200).json({ reply });
 
