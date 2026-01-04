@@ -48,7 +48,7 @@ console.log(JSON.stringify({
 
     // 3. Run the assistant
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: "asst_bj8m6gUBDh0WlMQ1FrSgZfKf",
+      assistant_id: "asst_VeCWjZSuhN5zP9XipjhvQZP6",
     });
 
     // 4. Wait for completion
