@@ -5,11 +5,7 @@ const openai = new OpenAI({
 });
 
 export default async function handler(req, res) {
-  // ---- CORS ----
-  res.setHeader("Access-Control-Allow-Origin", "*");
-  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
-
+  // Handle preflight
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
@@ -25,7 +21,7 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: "Message is required" });
     }
 
-    // 1. Create thread
+    // 1. Create a thread
     const thread = await openai.beta.threads.create();
 
     // 2. Add user message
@@ -36,64 +32,58 @@ export default async function handler(req, res) {
 
     // 3. Run assistant
     const run = await openai.beta.threads.runs.create(thread.id, {
-      assistant_id: "asst_VeCWjZSuhN5zP9XipjhvQZP6",
+      assistant_id: "asst_VeCWjZSuhN5zP9XipjhvQZP6", // unchanged
     });
 
     // 4. Wait for completion
     let runStatus;
     do {
       await new Promise((r) => setTimeout(r, 800));
-      runStatus = await openai.beta.threads.runs.retrieve(
-        thread.id,
-        run.id
-      );
+      runStatus = await openai.beta.threads.runs.retrieve(thread.id, run.id);
     } while (runStatus.status !== "completed");
 
-    // 5. Read assistant message
+    // 5. Read messages
     const messages = await openai.beta.threads.messages.list(thread.id);
-    const lastMessage = messages.data.find(
+
+    const assistantMessage = messages.data.find(
       (m) => m.role === "assistant"
     );
 
-    let reply =
-      lastMessage?.content?.[0]?.text?.value ||
-      "I couldn’t answer this—ask the real Faiz 🙂";
+    let rawText = "";
 
-    // =================================================
-    // 🔥 FIX: SAFE JSON EXTRACTION FIRST
-    // =================================================
-
-    // If reply is JSON-wrapped, parse it
-    if (typeof reply === "string") {
-      const trimmed = reply.trim();
-
-      if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-        try {
-          const parsed = JSON.parse(trimmed);
-
-          if (typeof parsed === "object") {
-            reply =
-              parsed.reply ||
-              parsed.answer ||
-              parsed.text ||
-              reply;
-          }
-        } catch {
-          // leave reply as-is if parsing fails
+    if (assistantMessage?.content?.length) {
+      for (const block of assistantMessage.content) {
+        if (block.type === "text" && block.text?.value) {
+          rawText += block.text.value + "\n";
         }
       }
     }
 
-    // =================================================
-    // 🔥 CLEAN HUMAN OUTPUT
-    // =================================================
+    // ---------- NORMALIZATION (THE REAL FIX) ----------
 
+    let reply = rawText.trim();
+
+    // Case 1: JSON-like wrapper → extract value
+    if (reply.startsWith("{") && reply.includes("reply")) {
+      try {
+        const parsed = JSON.parse(reply);
+        if (typeof parsed.reply === "string") {
+          reply = parsed.reply;
+        }
+      } catch (_) {
+        // ignore parse failure, fall through
+      }
+    }
+
+    // Case 2: "reply :" prefix → remove only the key, not content
+    reply = reply.replace(/^\s*reply\s*:\s*/i, "");
+
+    // Final human cleanup (light, safe)
     reply = reply
-      .replace(/\\n+/g, "\n")         // convert escaped newlines
-      .replace(/\n{3,}/g, "\n\n")     // normalize spacing
-      .replace(/^\s*["']|["']\s*$/g, "") // trim stray quotes
-      .replace(/\*\*/g, "")           // remove markdown bold
-      .replace(/^\s*[-•]\s+/gm, "")   // remove bullets
+      .replace(/\*+/g, "")              // remove markdown
+      .replace(/^\s*[-•]\s+/gm, "")     // remove bullets
+      .replace(/\n{3,}/g, "\n\n")       // normalize spacing
+      .replace(/^"+|"+$/g, "")          // trim stray quotes
       .trim();
 
     return res.status(200).json({ reply });
